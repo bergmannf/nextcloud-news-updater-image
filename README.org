@@ -1,0 +1,65 @@
+#+TITLE: README
+
+* Nextcloud News Updater
+
+The [[https://github.com/nextcloud/news-updater][nextcloud-news-updater]] is an option to update the news app.
+
+This image is meant to be used for container based installation of Nextcloud, as
+those can not use the system cron.
+
+* Usage
+** Kubernetes
+To use it inside Kubernetes it is expected to use a =ConfigMap= to setup the
+required data to update the Nextcloud app.
+
+#+begin_src yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: news-updater
+data:
+  config.ini: |
+    [updater]
+    user = admin
+    password = password
+    threads = 1
+    interval = 900
+    logleve = error
+    url = https://your-nextcloud.com/
+    apilevel = v15
+    mode = singlerun
+#+end_src
+
+Then use the =ConfigMap= inside a =CronJob=:
+
+#+begin_src yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nextcloud-news-updater
+  labels:
+    app: nextcloud-news-updater
+spec:
+  schedule: "0 */12 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          name: nextcloud-news-updater
+        spec:
+          containers:
+          - name: nextcloud-news-updater
+            image: monadt/nextcloud-news-updater:
+            imagePullPolicy: IfNotPresent
+            command:
+            - "--config"
+            - "/var/updater/config.ini"
+            volumeMounts:
+              - name: configuration
+                mountPath: /var/updater
+          restartPolicy: Never
+          volumes:
+            - name: configuration
+              configMap:
+                name: news-updater
+#+end_src
